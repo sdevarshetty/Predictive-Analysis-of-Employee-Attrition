@@ -1,0 +1,170 @@
+---
+title: "Predictive Analysis on Employee Attrition"
+author: "Sharan Devarshetty"
+date: "15/06/2022"
+output: 
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("ROSE")
+library(dplyr)
+library(knitr)
+library(formattable)
+library(ggplot2)
+library(tidyr)
+library(data.table) 
+library(rattle)  
+library(magrittr)  
+library(rpart.plot)
+library(caret)
+library(randomForest)
+library(ROSE)
+```
+
+## Abstract
+For any given association, employees are a significant resource. Therefore, where employees decide to quit job unexpectedly in any give institution, it brings in immense expenses that might not be accounted for. This is because the process of hiring new employees always makes any institution to incur a lot of time and finances. In addition, there needs to have some training to the  newly hired employees to ensure that they make the institution productive and this training is time consuming which leads to the organization incurring losses. Therefore, this project has developed a machine learning model that will be essential to the organizations in predicting employee attrition rate that will be dependent to the dataset obtained from HR analytics retrieved from Kaggle.com website. The project perform a prediction on reasons for employees to leave an organization and employee attrition. The objective was to identify the various reasons as to why most and best experienced employees are most likely to leave an institution to ensure that the institution determines the areas where they are lagging behind. The project used the Logistic regression model. The results for this project are helpful to the Human Resource management of the organization as they can be able to identify reasons for employee attrition and implement the best strategies that ensures they retain already existing employees before they start looking for new employees. The project main objective will be to identify the departments and job titles that have the highest employee attrition. In addition, the project will work on the research question of whether age is one of the contributing factors for employee attrition. 
+
+## Introduction
+
+Employee attrition for any organization involves man power decrease in the case where employees willingly decide to leave or resigned by the Human Resource of the organization. There is always high employees turnover for in the case where the case where there is high employee attrition rate. This in return causes the organization to incur huge expenditures on human resources in the process of recruiting new employees, training the newly hired employees, and maintaining the performance of the employees to the organization's standards. Therefore, for any organization, to ensure that they reduce employee attrition they have made efforts to improve the employee morale and provide them with conducive working conditions. For any organization, there are different explanations where an employee can leave their job. 
+With the prediction on employee attrition it will be essential for the organization to take quicker actions in their strategies and policies internally where the employees with a higher risk of leaving the company can be provided with alternative recommendations like proper training or increment in their pay to ensure the probability of leaving have been reduced. 
+
+## Literature Review
+
+Mitkees et al. (2017) provided a proposal for solving the customer churn problem identified through developing models by use of procedures like association for detection, classification for prediction, and clustering for detection. In another project by Khare et al. (2011), the researchers created a logistic regression method that was dependent on employee's data in building a system that was essential in predicting employee attrition. They were able to identify the reasons for high employee attrition and an action plan taken for minimizing the employee churn risk. In their research, Coussement & Van den Poel (2008) implemented support vector machine method in predicting employee churn. From their study, it was identified that with noisy marketing data, there is a good generalization performance for the supporting vector machines. In their study, Omar Ali (2017) identified that there was a higher likelihood for the employees to leave an institution as a result of disagreement with senior manager. There were a number of major factors identified that affect the employees' attrition. 
+
+## Theory
+H1: There is a high employee attrition for older employees than that of the younger employees. 
+
+
+## Data
+
+The dataset has been downloaded from https://www.kaggle.com/HRAnalyticRepository/employee-attrition-data/discussion. 
+
+
+
+```{r echo=FALSE}
+emp_attrition <- read.csv("C:/Users/User/Downloads/MFG10YearTerminationData.csv", stringsAsFactors =  F)
+head(emp_attrition)
+
+```
+Check for any missing values in the data. The result is FALSE which means that there are no missing values in the data. 
+
+```{r}
+anyNA(emp_attrition)
+```
+Convert the resignation to factor for the dataset. 
+```{r}
+emp_attrition$termreason_desc <- as.factor(gsub("Resignaton", "Resignation", emp_attrition$termreason_desc))
+```
+Check for rows and columns in the data.There are 49653 employees and 18 features in the dataset.  
+
+
+```{r}
+dim(emp_attrition)
+
+```
+Give a summary of the data emp_attrition
+
+```{r}
+summary(emp_attrition)
+
+```
+
+## Methodology
+
+Having the clear picture of the dataset, then we start working on the dataset to identify various analysis related to termination.First, we find the number of employees who has left the company each year.
+
+```{r}
+attrition_status <- with(emp_attrition, table(STATUS_YEAR, STATUS))
+attrition_status <- spread(data.frame(attrition_status), STATUS, Freq)
+attrition_status$previous_active <- shift(attrition_status$ACTIVE, 1L, type = "lag")
+attrition_status$percent_terminated <- 100*attrition_status$TERMINATED / attrition_status$previous_active
+attrition_status
+
+```
+
+Next, we depict and visualize in a barchart the employee attrition in each year and the reasons for attrition. 
+
+```{r}
+reasons_attrition <- as.data.frame(emp_attrition %>% filter(STATUS=="TERMINATED"))
+# plot reason for termination
+library(ggplot2)
+ggplot() + geom_bar(aes(y = ..count..,x = STATUS_YEAR, fill = termreason_desc), data=reasons_attrition, position = position_stack()) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
+```
+
+Next, we perform modelling to identify ways through which employee attrition can be predicted. 
+
+```{r}
+# subset by selecting variables important in predicting employee attrition
+reasons_attrition_vars <- c("age","length_of_service","city_name", "department_name","job_title","store_name","gender_full","BUSINESS_UNIT","STATUS")
+# split data to training and testing sets
+emp_attrition_reasons_train <- subset(emp_attrition, STATUS_YEAR < 2015)
+emp_attrition_reasons_test <- subset(emp_attrition, STATUS_YEAR == 2015)
+set.seed(99)  # set a pre-defined value for the random seed so that results are repeatable
+# Create the Decision tree model
+tree <- rpart(STATUS ~.,
+                     data = emp_attrition_reasons_train[reasons_attrition_vars],
+                     method = 'class',
+                     parms = list(split='information'),
+                     control = rpart.control(usesurrogate = 0,
+                                             maxsurrogate = 0))
+# Plot the decision tree
+rpart.plot(tree, roundint = FALSE, type = 3)
+```
+
+Perform a prediction in future voluntary terminations by creating the resigned variable.
+
+```{r}
+# create a voluntary_terminations column
+emp_attrition$resigned <- ifelse(emp_attrition$termreason_desc == "Resignation", "Yes", "No")
+# convert resigned column to factor (from character)
+emp_attrition$resigned <- as.factor(emp_attrition$resigned)  
+summary(emp_attrition$resigned)
+```
+
+
+
+## Results
+
+The plots illustrate that the employee attrition is more for younger employees who are at the age between 20 years and 30 years.
+
+```{r echo=FALSE}
+featurePlot(x=emp_attrition[,6], y=emp_attrition$resigned,plot="density",auto.key = list(columns = 2), labels = c("Age (years)", ""))
+```
+
+It is also clear that employee attrition is high in particulat job titles like shelf stocker and cashier. Additionally, departments like Processes Foods, Customer Service, and Diary have a higher employee attrition. 
+
+```{r echo=FALSE}
+ggplot() + geom_bar(aes(y = ..count.., x = department_name, fill = termreason_desc), data=reasons_attrition, position = position_stack())+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+```
+
+```{r echo=FALSE}
+
+ggplot() + geom_bar(aes(y = ..count.., x = job_title, fill = termreason_desc), data=reasons_attrition, position = position_stack())+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+```
+
+## Implications
+
+This project only applied the the decision tree and some Exploratory Data Analysis. For future research, I would recommend implementation of Random Forest model to help in identifying more insights and also identify at risk employees for attrition. 
+ 
+## Conclusion
+
+The analysis in this project has illustrated the various factors that majorly contribute to employee attrition. Therefore, with this, companies will be able to address these factors. In addition, with the prediction, the managers will be able to have an improvement of the engagement and experiences of their employees to ensure they retain the employees. 
+
+## References
+
+Mitkees, I. M., Badr, S. M., & ElSeddawy, A. I. B. (2017, December). Customer churn prediction model using data mining techniques. In 2017 13th International Computer Engineering Conference (ICENCO) (pp. 262-268). IEEE.
+
+Omar Ali, N. Z. M. (2017). Factors affecting employee turnover in organization.
+
+Coussement, K., & Van den Poel, D. (2008). Integrating the voice of customers through call center emails into a decision support system for churn prediction. Information & Management, 45(3), 164-174.
+
+Khare, R., Kaloya, D., Choudhary, C. K., & Gupta, G. (2011, January). Employee attrition risk assessment using logistic regression analysis. In Int. Conf. Adv. Data Anal. Bus. Anal. Intell (pp. 1-33).
